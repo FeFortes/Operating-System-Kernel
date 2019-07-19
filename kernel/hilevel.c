@@ -12,7 +12,7 @@
 
 #define MAXPROCESSES 8
 
-uint32_t nProcesses = 1; //defines the number of processes, assuming a fixed number
+uint32_t nProcesses = 1; // Counts the number of processes being executed. In the beggining, only the console is being executed
 pcb_t pcb[ MAXPROCESSES ]; pcb_t* current = NULL;
 int idxFreeEntry = -1;
 
@@ -56,14 +56,15 @@ void dispatch( ctx_t* ctx, pcb_t* prev, pcb_t* next ) {
   return;
 }
 
-void schedule( ctx_t* ctx ) { //create a function getNext()
+void schedule( ctx_t* ctx ) { 
+  // observation: pid starts at 1, while the indexes of pcb start at 0. 
   int current_pid = current->pid;
   int idxNextProcess;
-  pcb[ current_pid-1 ].status = STATUS_READY;             // update   execution status  of P_3
-  idxNextProcess = getNextProcess();
+  pcb[ current_pid-1 ].status = STATUS_READY;             // stop executing the current process
+  idxNextProcess = getNextProcess();                      // process to start being executed
 
-  dispatch( ctx, &pcb[ current_pid -1 ], &pcb[ idxNextProcess ] );      // pid starts at 1, while the indexes of pcb start at 0. CHANGE TO RETURN THE INDEX
-  pcb[ idxNextProcess ].status = STATUS_EXECUTING;         // update   execution status  of P_4
+  dispatch( ctx, &pcb[ current_pid -1 ], &pcb[ idxNextProcess ] );  // change the process being executed    
+  pcb[ idxNextProcess ].status = STATUS_EXECUTING;         // update the pcb status of the process being executed
 
 
   return;
@@ -83,9 +84,9 @@ void hilevel_handler_rst( ctx_t* ctx             ) {
    for (int i=0; i<MAXPROCESSES; i++) { //initialise the process table
      memset( &pcb[ i ], 0, sizeof( pcb_t ) );
      pcb[ i ].status   = STATUS_NOTCREATED;
-     pcb[ i ].pid      = i+1;
-     pcb[ i ].tos = ( uint32_t ) (&tos_P) - i * 0x00001000; //this line did not have to be called in every fork...
-     pcb[ i ].ctx.cpsr = 0x50;
+     pcb[ i ].pid      = i+1; // process i has pid i+1 
+     pcb[ i ].tos = ( uint32_t ) (&tos_P) - i * 0x00001000; // top of stack
+     pcb[ i ].ctx.cpsr = 0x50; // interruption cunfiguration
    }
    memset( &pcb[ 0 ], 0, sizeof( pcb_t ) );     // initialise console
    pcb[ 0 ].pid      = 1;
@@ -169,9 +170,9 @@ void hilevel_handler_svc( ctx_t* ctx, uint32_t id ) {
       break;
     }
 
-      case 0x03 : { //PROBLEM: THE GPR[0] OF THE PARENT IS WRONG, and so does the child s. The nProcess should be updated here, not in exec!
-      //fork - unable timer interrupt?
-      //create new entry on PCB, for the new child process (future change: find the first pid not used)
+      case 0x03 : { 
+      //fork 
+      //create new entry on PCB, for the new child process (find the first pid not used)
       //copy the context of the parent process to the child process
       if(nProcesses == MAXPROCESSES) { //the table is full; there is no space for more processes
         break;
@@ -180,14 +181,14 @@ void hilevel_handler_svc( ctx_t* ctx, uint32_t id ) {
       // memset( &pcb[ idxFreeEntry ], 0, sizeof( pcb_t ) );
       memcpy( &pcb[ idxFreeEntry ].ctx, ctx, sizeof( ctx_t ) ); //copy the context of the parent into the chil
       memcpy( (uint32_t)pcb[ idxFreeEntry ].tos - 0x00001000, (uint32_t)pcb[ current->pid -1].tos - 0x00001000, 0x00001000 ); //copy stack
-      pcb[ idxFreeEntry ].pid      = idxFreeEntry + 1; //IS IT CORRECT
+      pcb[ idxFreeEntry ].pid      = idxFreeEntry + 1; 
       pcb[ idxFreeEntry ].status   = STATUS_CREATED;
       pcb[ idxFreeEntry ].ctx.sp   =  pcb[ idxFreeEntry ].tos - (pcb[ current->pid -1].tos - pcb[ current->pid -1].ctx.sp); //you cant simply just
       //copy the stack pointer of the parent process into the child process. You have to move the stack pointer in relation to the top of the stack of the process
       pcb[ idxFreeEntry ].priority = (uint32_t) (nProcesses%4)+1;
 
-      ctx->gpr[ 0 ] = pcb[ idxFreeEntry ].pid; //pcb[0].ctx.gpr[0] and ctx->gpr[0] have different addresses. Why? PC doesnt change when the program is executed.
-      pcb[ idxFreeEntry ].ctx.gpr[ 0 ] = 0; //nprocess++?
+      ctx->gpr[ 0 ] = pcb[ idxFreeEntry ].pid; // returns pid for the parent
+      pcb[ idxFreeEntry ].ctx.gpr[ 0 ] = 0; // returns 0 for the child
       break;
     }
 
@@ -205,10 +206,9 @@ void hilevel_handler_svc( ctx_t* ctx, uint32_t id ) {
     }
 
     case 0x05 : { //exec
-      ctx->pc   = (uint32_t) ctx->gpr[ 0 ]; //address of main
-      ctx->sp = pcb[ current->pid -1 ].tos;
+      ctx->pc   = (uint32_t) ctx->gpr[ 0 ]; // load the address of main to the Program Counter
+      ctx->sp = pcb[ current->pid -1 ].tos; // reset the stack pointer to the first position
       nProcesses++;
-      //idxFreeEntry = -1; //-1 indicates invalid index (avoid the variable from keeping an old value/residual value)
       break;
     }
 
