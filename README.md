@@ -20,4 +20,4 @@ The repo contains code in both C and ASM. In a nutshell:
 	
 Only the **Console** process is initialized. It interracts with the user via terminal, where the user can create/delete processes. To create processes, Fork and Exec are executed. When deleting processes, Kill is executed. If the process reaches its end, Exit is executed.   
 
-Fork, Exec, Kill and Exit are implemented in **kernel/hilevel.c** in routine hilevel_handler_svc.
+Fork, Exec, Kill and Exit are implemented in **kernel/hilevel.c** in the routine hilevel_handler_svc.
